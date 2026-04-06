@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 env:
@@ -32,6 +32,84 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve upstream OpenClaw version tag
+        id: upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          from_ref="$(awk 'toupper($1) == "FROM" { print $2; exit }' Dockerfile)"
+          if [ -z "$from_ref" ]; then
+            echo "::error::Could not find a FROM image in Dockerfile"
+            exit 1
+          fi
+
+          base_ref="${from_ref%%@*}"
+          base_tag="latest"
+          if [[ "$base_ref" == *:* ]]; then
+            base_tag="${base_ref##*:}"
+          fi
+
+          # If Dockerfile is already pinned to a non-latest tag, reuse it directly.
+          if [ "$base_tag" != "latest" ]; then
+            echo "version_tag=$base_tag" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$base_ref" != ghcr.io/* ]]; then
+            echo "::error::Expected a GHCR base image, got '$base_ref'"
+            exit 1
+          fi
+
+          repo="${base_ref#ghcr.io/}"
+
+          token="$(curl -fsSL "https://ghcr.io/token?scope=repository:${repo}:pull" | jq -r '.token // empty')"
+          if [ -z "$token" ]; then
+            echo "::error::Failed to acquire GHCR token for ${repo}"
+            exit 1
+          fi
+
+          get_digest() {
+            local ref="$1"
+            curl -fsSI \
+              -H "Authorization: Bearer ${token}" \
+              -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json" \
+              "https://ghcr.io/v2/${repo}/manifests/${ref}" \
+              | tr -d '\r' \
+              | awk -F': ' '/Docker-Content-Digest/ { print $2 }'
+          }
+
+          latest_digest="$(get_digest latest)"
+          if [ -z "$latest_digest" ]; then
+            echo "::error::Could not resolve digest for ${repo}:latest"
+            exit 1
+          fi
+
+          mapfile -t tags < <(
+            curl -fsSL -H "Authorization: Bearer ${token}" "https://ghcr.io/v2/${repo}/tags/list?n=1000" \
+              | jq -r '.tags[]?' \
+              | sort -Vr
+          )
+
+          version_tag=""
+          for candidate in "${tags[@]}"; do
+            [ "$candidate" = "latest" ] && continue
+            [[ "$candidate" =~ ^[0-9]+(\.[0-9]+){1,3}([-.][0-9A-Za-z]+)?$ ]] || continue
+
+            candidate_digest="$(get_digest "$candidate" || true)"
+            if [ -n "$candidate_digest" ] && [ "$candidate_digest" = "$latest_digest" ]; then
+              version_tag="$candidate"
+              break
+            fi
+          done
+
+          if [ -z "$version_tag" ]; then
+            echo "::error::No version-like tag matched digest ${latest_digest} for ${repo}:latest"
+            exit 1
+          fi
+
+          echo "version_tag=$version_tag" >> "$GITHUB_OUTPUT"
+
       - name: Extract metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
@@ -40,6 +118,7 @@ jobs:
           tags: |
             type=raw,value=latest
             type=sha,prefix=sha-
+            type=raw,value=${{ steps.upstream.outputs.version_tag }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -49,3 +128,20 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION_TAG: ${{ steps.upstream.outputs.version_tag }}
+        run: |
+          tag="v${VERSION_TAG}"
+          name="openclaw ${VERSION_TAG}"
+
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "Release $tag already exists, skipping."
+          else
+            gh release create "$tag" \
+              --title "$name" \
+              --generate-notes \
+              --target "${{ github.sha }}"
+          fi
