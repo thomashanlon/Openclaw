@@ -2,11 +2,6 @@ FROM ghcr.io/openclaw/openclaw:latest
 
 USER root
 
-# Install bubblewrap (for sandboxing Codex)
-RUN apt-get update \
- && apt-get install -y bubblewrap \
- && rm -rf /var/lib/apt/lists/*
-
 # Install MCPorter
 RUN npm install -g mcporter
 
