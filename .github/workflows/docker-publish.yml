@@ -76,27 +76,40 @@ jobs:
             type=raw,value=${{ steps.upstream.outputs.version_tag }}
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          pull: true
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      - name: Create GitHub Release
+      - name: Create or refresh GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION_TAG: ${{ steps.upstream.outputs.version_tag }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           tag="v${VERSION_TAG}"
           name="openclaw ${VERSION_TAG}"
+          image_ref="${IMAGE_NAME}:${VERSION_TAG}@${IMAGE_DIGEST}"
+
+          # Move the version tag to this build so repeated builds for the same
+          # upstream version keep the release in sync with the latest package.
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f "$tag" "${{ github.sha }}"
+          git push --force origin "refs/tags/$tag"
 
           if gh release view "$tag" > /dev/null 2>&1; then
-            echo "Release $tag already exists, skipping."
+            gh release edit "$tag" --title "$name"
           else
             gh release create "$tag" \
               --title "$name" \
-              --generate-notes \
-              --target "${{ github.sha }}"
+              --generate-notes
           fi
+
+          printf '%s\n' "$image_ref" > /tmp/container-image.txt
+          gh release upload "$tag" "/tmp/container-image.txt#container-image.txt" --clobber
