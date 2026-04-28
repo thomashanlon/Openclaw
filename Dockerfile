@@ -33,4 +33,37 @@ RUN mkdir -p /etc/apt/keyrings \
  && apt-get install -y gh \
  && rm -rf /var/lib/apt/lists/*
 
+ # Install Godot .NET and expose it on PATH as `godot` and `godot4`
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+    unzip \
+    libasound2 \
+    libdbus-1-3 \
+    libfontconfig1 \
+    libgl1 \
+    libnss3 \
+    libx11-6 \
+    libxcursor1 \
+    libxi6 \
+    libxinerama1 \
+    libxrandr2 \
+ && rm -rf /var/lib/apt/lists/*
+
+ARG GODOT_VERSION=4.6.2
+ARG GODOT_RELEASE=stable
+ARG GODOT_FLAVOR=mono
+
+RUN set -eux; \
+    godot_dir="Godot_v${GODOT_VERSION}-${GODOT_RELEASE}_${GODOT_FLAVOR}_linux_x86_64"; \
+    godot_zip="${godot_dir}.zip"; \
+    curl -fsSLo "/tmp/${godot_zip}" "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_RELEASE}/${godot_zip}"; \
+    unzip -q "/tmp/${godot_zip}" -d /opt; \
+    rm "/tmp/${godot_zip}"; \
+    ln -sf "/opt/${godot_dir}/Godot_v${GODOT_VERSION}-${GODOT_RELEASE}_${GODOT_FLAVOR}_linux.x86_64" /usr/local/bin/godot; \
+    ln -sf /usr/local/bin/godot /usr/local/bin/godot4; \
+    godot --version
+
+ENV GODOT_PATH=/usr/local/bin/godot
+ENV PATH=/usr/local/bin:${PATH}
+
 USER node
