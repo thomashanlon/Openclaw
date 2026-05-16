@@ -11,8 +11,11 @@ RUN apt-get update \
 # Install MCPorter
 RUN npm install -g mcporter
 
-# Install Codex
-RUN npm i -g @openai/codex
+# Install OpenClaw Codex plugin
+#RUN npm install -g @openclaw/codex
+
+# # Install Codex
+# RUN npm i -g @openai/codex
 
 # Install .NET 10 SDK
 RUN curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh && \
