@@ -2,6 +2,10 @@ FROM ghcr.io/openclaw/openclaw:latest
 
 USER root
 
+# Install OpenClaw plugins
+RUN openclaw plugins install @openclaw/codex
+RUN openclaw plugins install @openclaw/voice-call
+
 # Install runtime dependencies used by the .NET SDK
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
