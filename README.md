@@ -333,11 +333,12 @@ Tailscale volumes need to be removed.
 
 The one-shot `openclaw-config-migrate` service runs before the Gateway. For an
 older config it creates
-`openclaw.json.pre-2026.7.2-beta.6`, migrates only the config keys removed by
-this beta, and exits. The Gateway starts only after that migration succeeds.
-On later redeploys the service detects the current schema and leaves the config
-untouched. In Portainer, an exited migration container with exit code `0` is
-expected.
+`openclaw.json.pre-2026.7.2-beta.6`, migrates the config keys removed by this
+beta, then runs the beta's non-interactive safe `doctor --fix` migrations. The
+doctor step covers upstream migrations such as `memorySearch` and the shared
+state SQLite schema. The Gateway starts only after both steps succeed. On later
+redeploys both steps are idempotent and leave current data untouched. In
+Portainer, an exited migration container with exit code `0` is expected.
 
 The custom image is large. If stack creation times out while pulling it, use
 Portainer's **Images** page to pull

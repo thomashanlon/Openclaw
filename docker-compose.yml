@@ -11,7 +11,12 @@ services:
       - no-new-privileges:true
     network_mode: none
     restart: "no"
-    command: ["node", "/app/scripts/migrate-openclaw-config.mjs"]
+    command:
+      [
+        "sh",
+        "-lc",
+        "node /app/scripts/migrate-openclaw-config.mjs && node /app/dist/index.js doctor --fix --non-interactive",
+      ]
 
   openclaw-gateway:
     image: ${OPENCLAW_IMAGE:-openclaw-dev:local}
