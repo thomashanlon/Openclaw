@@ -9,12 +9,13 @@ development toolchain:
 - GitHub CLI (`gh`) with runtime `GH_TOKEN` support for both `gh` and HTTPS Git
 - `jq`, OpenSSH client, ripgrep, zip, and unzip
 
-The base image is pinned to the current stable OpenClaw release and immutable
-manifest, `ghcr.io/openclaw/openclaw:2026.7.1@sha256:6a31d44b2944e7adcd2b582bf6fb463111264ebca97a0201795b799135bd102c`.
-The explicit release avoids silently using an older build if the upstream
-mutable `latest` tag lags behind GitHub.
-The published custom image is also pinned by digest in `.env.example`, so the
-local machine and homeserver run the exact same bytes.
+The base image is pinned to the OpenClaw release that adds GPT-Live Realtime
+Talk support and its immutable manifest,
+`ghcr.io/openclaw/openclaw:2026.7.2-beta.6@sha256:4477d6d2572df1433034d90c678d5cb21f6a4c821dcc83952f7508b608c5ff92`.
+The explicit prerelease avoids the older `latest` build, which does not route
+`gpt-live-1-codex` through `/v1/live`. The custom image uses the same exact
+version tag in `.env.example`, so the Gateway and its bundled Control UI are
+upgraded together.
 
 ## Configure
 
@@ -322,19 +323,36 @@ to `/opt/openclaw/t5h5`. In Portainer:
 3. Deploy the stack and wait for both `tailscale` and `openclaw-gateway` to
    become healthy.
 
+For an existing stack, first wait for the repository's **Build and Publish
+Docker Image** workflow to publish
+`ghcr.io/thomashanlon/openclaw:2026.7.2-beta.6`. Then replace the stack's
+`OPENCLAW_IMAGE` environment value with that exact tag and use **Update the
+stack** with **Re-pull image** enabled. This recreates the Gateway from the new
+image; the same image serves the bundled Control UI. No persistent OpenClaw or
+Tailscale volumes need to be removed.
+
+The one-shot `openclaw-config-migrate` service runs before the Gateway. For an
+older config it creates
+`openclaw.json.pre-2026.7.2-beta.6`, migrates only the config keys removed by
+this beta, and exits. The Gateway starts only after that migration succeeds.
+On later redeploys the service detects the current schema and leaves the config
+untouched. In Portainer, an exited migration container with exit code `0` is
+expected.
+
 The custom image is large. If stack creation times out while pulling it, use
-Portainer's **Images** page to pull the digest-only form first, for example
-`ghcr.io/thomashanlon/openclaw@sha256:<digest>`, then deploy the stack again.
-The tag-and-digest value in `.env` remains the source of truth.
+Portainer's **Images** page to pull
+`ghcr.io/thomashanlon/openclaw:2026.7.2-beta.6` first, then deploy the stack
+again. The exact versioned value in `.env` remains the source of truth; do not
+substitute `latest`.
 
 Verify that the OpenClaw containers have no published ports and that the
 gateway responds only at its Tailscale HTTPS name. Portainer's stack name may
 change; `OPENCLAW_INSTANCE_NAME` must continue to match the copied directory
 and intended Tailscale hostname.
 
-The pinned image digest ensures the homeserver pulls the exact custom image
-tested locally. The current custom image is `linux/amd64`; publish an arm64
-manifest before using an ARM homeserver.
+The pinned image version ensures the homeserver runs the custom build based on
+OpenClaw `2026.7.2-beta.6`. The current custom image is `linux/amd64`; publish
+an arm64 manifest before using an ARM homeserver.
 
 Docker Desktop presents these Windows bind mounts to the container as mode
 `0777` and needs inherited NTFS access for file sharing, so the local OpenClaw
@@ -356,9 +374,9 @@ If `COMPOSE_PROJECT_NAME` changes on the homeserver, rename the copied
 
 ## Update
 
-When OpenClaw publishes a stable update, change the `FROM` tag in `Dockerfile`
-and publish the custom image. Update `OPENCLAW_IMAGE` to the new immutable
-digest only after validating it locally:
+When OpenClaw publishes an update, change both the `FROM` tag and digest in
+`Dockerfile`, validate the custom image locally, and publish the matching
+versioned `OPENCLAW_IMAGE` before redeploying:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.tailscale.yml pull

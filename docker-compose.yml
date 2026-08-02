@@ -1,4 +1,18 @@
 services:
+  openclaw-config-migrate:
+    image: ${OPENCLAW_IMAGE:-openclaw-dev:local}
+    environment:
+      OPENCLAW_CONFIG_PATH: /home/node/.openclaw/openclaw.json
+    volumes:
+      - "${OPENCLAW_CONFIG_DIR:-${HOME:-/tmp}/.openclaw}:/home/node/.openclaw"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    network_mode: none
+    restart: "no"
+    command: ["node", "/app/scripts/migrate-openclaw-config.mjs"]
+
   openclaw-gateway:
     image: ${OPENCLAW_IMAGE:-openclaw-dev:local}
     build: .
@@ -56,6 +70,9 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+    depends_on:
+      openclaw-config-migrate:
+        condition: service_completed_successfully
 
   openclaw-cli:
     image: ${OPENCLAW_IMAGE:-openclaw-dev:local}

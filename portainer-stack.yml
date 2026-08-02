@@ -37,6 +37,20 @@ services:
       retries: 12
       start_period: 10s
 
+  openclaw-config-migrate:
+    image: ${OPENCLAW_IMAGE:?Set OPENCLAW_IMAGE in Portainer}
+    environment:
+      OPENCLAW_CONFIG_PATH: /home/node/.openclaw/openclaw.json
+    volumes:
+      - /opt/openclaw/${OPENCLAW_INSTANCE_NAME}/config:/home/node/.openclaw
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    network_mode: none
+    restart: "no"
+    command: ["node", "/app/scripts/migrate-openclaw-config.mjs"]
+
   openclaw-gateway:
     image: ${OPENCLAW_IMAGE:?Set OPENCLAW_IMAGE in Portainer}
     network_mode: "service:tailscale"
@@ -98,6 +112,8 @@ services:
       retries: 5
       start_period: 20s
     depends_on:
+      openclaw-config-migrate:
+        condition: service_completed_successfully
       tailscale:
         condition: service_healthy
         restart: true

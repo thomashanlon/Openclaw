@@ -1,4 +1,4 @@
-FROM ghcr.io/openclaw/openclaw:2026.7.1@sha256:6a31d44b2944e7adcd2b582bf6fb463111264ebca97a0201795b799135bd102c
+FROM ghcr.io/openclaw/openclaw:2026.7.2-beta.6@sha256:4477d6d2572df1433034d90c678d5cb21f6a4c821dcc83952f7508b608c5ff92
 
 USER root
 
@@ -37,6 +37,10 @@ RUN set -eux; \
 RUN git config --system credential.https://github.com.helper '' \
  && git config --system --add credential.https://github.com.helper \
       '!/usr/bin/gh auth git-credential'
+
+# Beta.6 rejects several keys written by the previous release. Keep the
+# upgrade migration narrow and versioned instead of running doctor --fix.
+COPY --chown=node:node scripts/migrate-openclaw-config.mjs /app/scripts/migrate-openclaw-config.mjs
 
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 \
     DOTNET_NOLOGO=1

@@ -21,9 +21,8 @@
     }
   },
   "agents": {
-    "list": [
-      {
-        "id": "main",
+    "entries": {
+      "main": {
         "default": true,
         "name": "T5H5",
         "workspace": "/home/node/.openclaw/workspace/t5h5",
@@ -37,8 +36,7 @@
           ]
         }
       },
-      {
-        "id": "frink",
+      "frink": {
         "name": "Frink",
         "workspace": "/home/node/.openclaw/workspace/frink",
         "agentDir": "/home/node/.openclaw/agents/frink/agent",
@@ -51,8 +49,7 @@
           ]
         }
       },
-      {
-        "id": "highwright",
+      "highwright": {
         "name": "Highwright",
         "workspace": "/home/node/.openclaw/workspace/highwright",
         "agentDir": "/home/node/.openclaw/agents/highwright/agent",
@@ -65,11 +62,16 @@
           ]
         }
       }
-    ],
+    },
     "defaults": {
       "thinkingDefault": "high",
       "models": {
         "openai/gpt-5.6-sol": {}
+      },
+      "modelPolicy": {
+        "allow": [
+          "openai/gpt-5.6-sol"
+        ]
       }
     }
   },
@@ -138,14 +140,12 @@
       "telegram:${TELEGRAM_OWNER_USER_ID}"
     ]
   },
-  "messages": {
-    "tts": {
-      "provider": "openai",
-      "providers": {
-        "openai": {
-          "model": "gpt-4o-mini-tts",
-          "speakerVoice": "fable"
-        }
+  "tts": {
+    "provider": "openai",
+    "providers": {
+      "openai": {
+        "model": "gpt-4o-mini-tts",
+        "speakerVoice": "fable"
       }
     }
   },
