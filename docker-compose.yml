@@ -2,6 +2,7 @@ services:
   openclaw-config-migrate:
     image: ${OPENCLAW_IMAGE:-openclaw-dev:local}
     environment:
+      HEADQUARTERS_MCP_URL: ${HEADQUARTERS_MCP_URL:?Set HEADQUARTERS_MCP_URL in .env}
       OPENCLAW_CONFIG_PATH: /home/node/.openclaw/openclaw.json
     volumes:
       - "${OPENCLAW_CONFIG_DIR:-${HOME:-/tmp}/.openclaw}:/home/node/.openclaw"

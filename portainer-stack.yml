@@ -40,6 +40,7 @@ services:
   openclaw-config-migrate:
     image: ${OPENCLAW_IMAGE:?Set OPENCLAW_IMAGE in Portainer}
     environment:
+      HEADQUARTERS_MCP_URL: ${HEADQUARTERS_MCP_URL:?Set HEADQUARTERS_MCP_URL in Portainer}
       OPENCLAW_CONFIG_PATH: /home/node/.openclaw/openclaw.json
     volumes:
       - /opt/openclaw/${OPENCLAW_INSTANCE_NAME}/config:/home/node/.openclaw
