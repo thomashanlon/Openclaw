@@ -314,7 +314,9 @@ host ports and persists all mutable state under
 - `tailscale/serve.json` for the tailnet-only HTTPS proxy
 
 Set `OPENCLAW_INSTANCE_NAME=t5h5` in `.env`, then copy the migrated directories
-to `/opt/openclaw/t5h5`. In Portainer:
+to `/opt/openclaw/t5h5`. Stop any older Compose project that uses the same
+workspace or Telegram bot tokens so only one Gateway can poll each bot. In
+Portainer:
 
 1. Open **Stacks**, add a stack such as `openclaw-t5h5`, and paste
    `portainer-stack.yml` into the web editor.
@@ -337,9 +339,11 @@ keys removed by this beta, and also migrates OpenClaw's
 `openclaw.json.bak` last-known-good file so startup cannot restore the legacy
 schema. Each changed file gets its own `.pre-2026.7.2-beta.6` backup. It then
 runs the beta's non-interactive safe `doctor --fix` migrations, including the
-shared state SQLite repairs. The doctor receives the same config-reference
-environment as the Gateway, but remains network-isolated with all capabilities
-dropped. If doctor reports a post-repair validation error, a fresh
+shared state SQLite repairs. The service mounts the same workspace as the
+Gateway so Doctor can also import retired workspace setup state. Doctor
+receives the same config-reference environment as the Gateway, but remains
+network-isolated with all capabilities dropped. If doctor reports a post-repair
+validation error, a fresh
 `config validate` process must succeed before the migration is accepted;
 invalid config still blocks Gateway startup. On later redeploys the repairs are
 idempotent and leave current data untouched. In Portainer, an exited migration

@@ -17,6 +17,7 @@ services:
       TZ: ${OPENCLAW_TZ:-UTC}
     volumes:
       - "${OPENCLAW_CONFIG_DIR:-${HOME:-/tmp}/.openclaw}:/home/node/.openclaw"
+      - "${OPENCLAW_WORKSPACE_DIR:-${HOME:-/tmp}/.openclaw/workspace}:/home/node/.openclaw/workspace"
     cap_drop:
       - ALL
     security_opt:
