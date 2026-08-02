@@ -95,6 +95,52 @@ test("is idempotent after migration", () => {
   assert.deepEqual(migrateConfig(config), []);
 });
 
+test("migrates legacy memory search before converting the agent roster", () => {
+  const config = {
+    memory: {
+      search: {
+        query: { maxResults: 11 },
+      },
+    },
+    agents: {
+      defaults: {
+        memorySearch: {
+          provider: "auto",
+          chunkSize: 600,
+          maxResults: 7,
+          store: { path: "/legacy/default-memory.sqlite" },
+        },
+      },
+      list: [
+        {
+          id: "main",
+          default: true,
+          memorySearch: {
+            provider: "auto",
+            maxResults: 5,
+          },
+        },
+      ],
+    },
+  };
+
+  const changes = migrateConfig(config);
+
+  assert.match(changes.join("\n"), /memorySearch defaults.*memory\.search/);
+  assert.equal("memorySearch" in config.agents.defaults, false);
+  assert.deepEqual(config.memory.search, {
+    query: { maxResults: 11 },
+    provider: "openai",
+    chunking: { tokens: 600 },
+    store: {},
+  });
+  assert.deepEqual(config.agents.entries.main.memory.search, {
+    provider: "openai",
+    query: { maxResults: 5 },
+  });
+  assert.equal("memorySearch" in config.agents.entries.main, false);
+});
+
 test("refuses a mixed agent roster instead of dropping data", () => {
   const config = {
     agents: {
@@ -128,6 +174,22 @@ test("backs up and atomically migrates a config file only once", async (t) => {
     2,
   )}\n`;
   await writeFile(configPath, original, "utf8");
+  const lastKnownGoodPath = `${configPath}.bak`;
+  const lastKnownGood = `${JSON.stringify(
+    {
+      agents: {
+        defaults: {
+          memorySearch: {
+            provider: "auto",
+            maxResults: 6,
+          },
+        },
+      },
+    },
+    null,
+    2,
+  )}\n`;
+  await writeFile(lastKnownGoodPath, lastKnownGood, "utf8");
 
   const env = {
     OPENCLAW_CONFIG_PATH: configPath,
@@ -148,6 +210,19 @@ test("backs up and atomically migrates a config file only once", async (t) => {
     await readFile(`${configPath}.pre-2026.7.2-beta.6`, "utf8"),
     original,
   );
+  assert.equal(
+    await readFile(`${lastKnownGoodPath}.pre-2026.7.2-beta.6`, "utf8"),
+    lastKnownGood,
+  );
+  assert.deepEqual(JSON.parse(await readFile(lastKnownGoodPath, "utf8")), {
+    agents: { defaults: {} },
+    memory: {
+      search: {
+        provider: "openai",
+        query: { maxResults: 6 },
+      },
+    },
+  });
 
   const migrated = await readFile(configPath, "utf8");
   const secondRun = spawnSync(process.execPath, [scriptPath], {

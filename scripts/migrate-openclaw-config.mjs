@@ -26,6 +26,159 @@ function mergeMissing(target, source) {
   }
 }
 
+const MEMORY_SEARCH_FIELD_MAPPINGS = [
+  { legacyKey: "chunkSize", parentKey: "chunking", canonicalKey: "tokens" },
+  {
+    legacyKey: "chunkOverlap",
+    parentKey: "chunking",
+    canonicalKey: "overlap",
+  },
+  { legacyKey: "maxResults", parentKey: "query", canonicalKey: "maxResults" },
+];
+
+function getOrCreateRecord(container, key, path) {
+  if (container[key] === undefined) {
+    container[key] = {};
+  }
+  if (!isRecord(container[key])) {
+    throw new Error(`${path} must be an object before it can be migrated.`);
+  }
+  return container[key];
+}
+
+function migrateMemorySearchFields(memorySearch, path, changes) {
+  for (const { legacyKey, parentKey, canonicalKey } of
+    MEMORY_SEARCH_FIELD_MAPPINGS) {
+    if (!Object.hasOwn(memorySearch, legacyKey)) {
+      continue;
+    }
+    const legacyValue = memorySearch[legacyKey];
+    const canonicalParent = getOrCreateRecord(
+      memorySearch,
+      parentKey,
+      `${path}.${parentKey}`,
+    );
+    if (!Object.hasOwn(canonicalParent, canonicalKey)) {
+      canonicalParent[canonicalKey] = legacyValue;
+      changes.push(
+        `Moved ${path}.${legacyKey} to ${path}.${parentKey}.${canonicalKey}.`,
+      );
+    }
+    delete memorySearch[legacyKey];
+  }
+
+  if (
+    typeof memorySearch.provider === "string" &&
+    memorySearch.provider.trim().toLowerCase() === "auto"
+  ) {
+    memorySearch.provider = "openai";
+    changes.push(`Changed ${path}.provider from auto to openai.`);
+  }
+
+  if (isRecord(memorySearch.store) && typeof memorySearch.store.path === "string") {
+    delete memorySearch.store.path;
+    changes.push(`Removed ${path}.store.path; indexes now use the agent database.`);
+  }
+}
+
+function migrateMemorySearch(config, changes) {
+  const agents = isRecord(config.agents) ? config.agents : null;
+  const defaults = isRecord(agents?.defaults) ? agents.defaults : null;
+  const legacyDefaults = defaults?.memorySearch;
+  const legacyTopLevel = config.memorySearch;
+
+  if (legacyDefaults !== undefined && !isRecord(legacyDefaults)) {
+    throw new Error(
+      "agents.defaults.memorySearch must be an object before it can be migrated.",
+    );
+  }
+  if (legacyTopLevel !== undefined && !isRecord(legacyTopLevel)) {
+    throw new Error("memorySearch must be an object before it can be migrated.");
+  }
+
+  if (isRecord(legacyDefaults) || isRecord(legacyTopLevel)) {
+    const memory = getOrCreateRecord(config, "memory", "memory");
+    const target =
+      memory.search === undefined
+        ? {}
+        : structuredClone(
+            getOrCreateRecord(memory, "search", "memory.search"),
+          );
+    if (isRecord(legacyDefaults)) {
+      mergeMissing(target, legacyDefaults);
+      delete defaults.memorySearch;
+    }
+    if (isRecord(legacyTopLevel)) {
+      mergeMissing(target, legacyTopLevel);
+      delete config.memorySearch;
+    }
+    memory.search = target;
+    changes.push("Moved legacy memorySearch defaults to memory.search.");
+  }
+
+  if (Array.isArray(agents?.list)) {
+    for (const [index, value] of agents.list.entries()) {
+      if (!isRecord(value) || value.memorySearch === undefined) {
+        continue;
+      }
+      if (!isRecord(value.memorySearch)) {
+        throw new Error(
+          `agents.list.${index}.memorySearch must be an object before it can be migrated.`,
+        );
+      }
+      const memory = getOrCreateRecord(
+        value,
+        "memory",
+        `agents.list.${index}.memory`,
+      );
+      const target =
+        memory.search === undefined
+          ? {}
+          : structuredClone(
+              getOrCreateRecord(
+                memory,
+                "search",
+                `agents.list.${index}.memory.search`,
+              ),
+            );
+      mergeMissing(target, value.memorySearch);
+      memory.search = target;
+      delete value.memorySearch;
+      changes.push(
+        `Moved agents.list.${index}.memorySearch to agents.list.${index}.memory.search.`,
+      );
+    }
+  }
+
+  const canonical = isRecord(config.memory)
+    ? config.memory.search
+    : undefined;
+  if (canonical !== undefined) {
+    if (!isRecord(canonical)) {
+      throw new Error("memory.search must be an object before it can be migrated.");
+    }
+    migrateMemorySearchFields(canonical, "memory.search", changes);
+  }
+  if (Array.isArray(agents?.list)) {
+    for (const [index, value] of agents.list.entries()) {
+      const agentSearch = isRecord(value?.memory) ? value.memory.search : undefined;
+      if (agentSearch === undefined) {
+        continue;
+      }
+      if (!isRecord(agentSearch)) {
+        throw new Error(
+          `agents.list.${index}.memory.search must be an object before it can be migrated.`,
+        );
+      }
+      migrateMemorySearchFields(
+        agentSearch,
+        `agents.list.${index}.memory.search`,
+        changes,
+      );
+    }
+  }
+}
+
 function migrateAgentRoster(config, changes) {
   const agents = config.agents;
   if (!isRecord(agents) || !Object.hasOwn(agents, "list")) {
@@ -157,6 +310,7 @@ export function migrateConfig(config) {
   }
 
   const changes = [];
+  migrateMemorySearch(config, changes);
   migrateAgentRoster(config, changes);
   preserveModelPolicy(config, changes);
   migrateTts(config, changes);
@@ -164,12 +318,14 @@ export function migrateConfig(config) {
   return changes;
 }
 
-async function main() {
-  const configPath = process.env.OPENCLAW_CONFIG_PATH ?? DEFAULT_CONFIG_PATH;
+async function migrateConfigFile(configPath, label, required) {
   let source;
   try {
     source = await readFile(configPath, "utf8");
   } catch (error) {
+    if (error?.code === "ENOENT" && !required) {
+      return;
+    }
     if (error?.code === "ENOENT") {
       console.log(
         `No OpenClaw config found at ${configPath}; migration skipped.`,
@@ -190,7 +346,7 @@ async function main() {
 
   const changes = migrateConfig(config);
   if (changes.length === 0) {
-    console.log(`OpenClaw config is already compatible with ${TARGET_VERSION}.`);
+    console.log(`${label} is already compatible with ${TARGET_VERSION}.`);
     return;
   }
 
@@ -219,9 +375,19 @@ async function main() {
   }
 
   for (const change of changes) {
-    console.log(change);
+    console.log(label === "OpenClaw config" ? change : `${label}: ${change}`);
   }
-  console.log(`OpenClaw config is ready for ${TARGET_VERSION}.`);
+  console.log(`${label} is ready for ${TARGET_VERSION}.`);
+}
+
+async function main() {
+  const configPath = process.env.OPENCLAW_CONFIG_PATH ?? DEFAULT_CONFIG_PATH;
+  await migrateConfigFile(configPath, "OpenClaw config", true);
+  await migrateConfigFile(
+    `${configPath}.bak`,
+    "OpenClaw last-known-good config",
+    false,
+  );
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

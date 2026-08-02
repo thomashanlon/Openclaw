@@ -332,17 +332,18 @@ image; the same image serves the bundled Control UI. No persistent OpenClaw or
 Tailscale volumes need to be removed.
 
 The one-shot `openclaw-config-migrate` service runs before the Gateway. For an
-older config it creates
-`openclaw.json.pre-2026.7.2-beta.6`, migrates the config keys removed by this
-beta, then runs the beta's non-interactive safe `doctor --fix` migrations. The
-doctor step covers upstream migrations such as `memorySearch` and the shared
-state SQLite schema. It receives the same config-reference environment as the
-Gateway so validation sees the runtime values, but remains network-isolated
-with all capabilities dropped. If doctor reports a post-repair validation
-error, a fresh `config validate` process must succeed before the migration is
-accepted; invalid config still blocks Gateway startup. On later redeploys the
-repairs are idempotent and leave current data untouched. In Portainer, an
-exited migration container with exit code `0` is expected.
+older config it creates `openclaw.json.pre-2026.7.2-beta.6`, migrates the config
+keys removed by this beta, and also migrates OpenClaw's
+`openclaw.json.bak` last-known-good file so startup cannot restore the legacy
+schema. Each changed file gets its own `.pre-2026.7.2-beta.6` backup. It then
+runs the beta's non-interactive safe `doctor --fix` migrations, including the
+shared state SQLite repairs. The doctor receives the same config-reference
+environment as the Gateway, but remains network-isolated with all capabilities
+dropped. If doctor reports a post-repair validation error, a fresh
+`config validate` process must succeed before the migration is accepted;
+invalid config still blocks Gateway startup. On later redeploys the repairs are
+idempotent and leave current data untouched. In Portainer, an exited migration
+container with exit code `0` is expected.
 
 The custom image is large. If stack creation times out while pulling it, use
 Portainer's **Images** page to pull
