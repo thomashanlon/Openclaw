@@ -75,7 +75,7 @@ services:
       [
         "sh",
         "-lc",
-        "node /app/scripts/migrate-openclaw-config.mjs && node /app/dist/index.js doctor --fix --non-interactive",
+        "node /app/scripts/migrate-openclaw-config.mjs && (node /app/dist/index.js doctor --fix --non-interactive || node /app/dist/index.js config validate)",
       ]
 
   openclaw-gateway:
