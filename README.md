@@ -309,7 +309,7 @@ docker compose -f docker-compose.yml -f docker-compose.tailscale.yml up -d
 host ports and persists all mutable state under
 `/opt/openclaw/${OPENCLAW_INSTANCE_NAME}`:
 
-- `config`, `workspace`, and `auth-profile-secrets` for OpenClaw
+- `config`, `workspace`, `shared-docs`, and `auth-profile-secrets` for OpenClaw
 - `tailscale-state` for the node identity
 - `tailscale/serve.json` for the tailnet-only HTTPS proxy
 

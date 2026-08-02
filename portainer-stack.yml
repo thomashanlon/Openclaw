@@ -108,6 +108,7 @@ services:
     volumes:
       - /opt/openclaw/${OPENCLAW_INSTANCE_NAME}/config:/home/node/.openclaw
       - /opt/openclaw/${OPENCLAW_INSTANCE_NAME}/workspace:/home/node/.openclaw/workspace
+      - /opt/openclaw/${OPENCLAW_INSTANCE_NAME}/shared-docs:/home/node/.openclaw/shared-docs
       - /opt/openclaw/${OPENCLAW_INSTANCE_NAME}/auth-profile-secrets:/home/node/.config/openclaw
     cap_drop:
       - NET_RAW
