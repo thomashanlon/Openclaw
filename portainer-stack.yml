@@ -1,0 +1,103 @@
+services:
+  tailscale:
+    image: ${TAILSCALE_IMAGE:?Set TAILSCALE_IMAGE in Portainer}
+    environment:
+      TS_ACCEPT_DNS: "true"
+      TS_AUTH_ONCE: "true"
+      TS_AUTHKEY: ${TAILSCALE_AUTH_KEY:?Set TAILSCALE_AUTH_KEY in Portainer}
+      TS_ENABLE_HEALTH_CHECK: "true"
+      TS_EXTRA_ARGS: ${TS_EXTRA_ARGS:-}
+      TS_HOSTNAME: ${OPENCLAW_INSTANCE_NAME:?Set OPENCLAW_INSTANCE_NAME in Portainer}
+      TS_LOCAL_ADDR_PORT: "127.0.0.1:9002"
+      TS_SERVE_CONFIG: /config/serve.json
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "false"
+    volumes:
+      - /opt/openclaw/${OPENCLAW_INSTANCE_NAME}/tailscale-state:/var/lib/tailscale
+      - /opt/openclaw/${OPENCLAW_INSTANCE_NAME}/tailscale:/config:ro
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--spider",
+          "-q",
+          "http://127.0.0.1:9002/healthz",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  openclaw-gateway:
+    image: ${OPENCLAW_IMAGE:?Set OPENCLAW_IMAGE in Portainer}
+    network_mode: "service:tailscale"
+    environment:
+      GH_TOKEN: ${GH_TOKEN:?Set GH_TOKEN in Portainer}
+      HEADQUARTERS_FRINK_TOKEN: ${HEADQUARTERS_FRINK_TOKEN:?Set HEADQUARTERS_FRINK_TOKEN in Portainer}
+      HEADQUARTERS_HIGHWRIGHT_TOKEN: ${HEADQUARTERS_HIGHWRIGHT_TOKEN:?Set HEADQUARTERS_HIGHWRIGHT_TOKEN in Portainer}
+      HEADQUARTERS_MCP_URL: ${HEADQUARTERS_MCP_URL:?Set HEADQUARTERS_MCP_URL in Portainer}
+      HEADQUARTERS_T5H5_TOKEN: ${HEADQUARTERS_T5H5_TOKEN:?Set HEADQUARTERS_T5H5_TOKEN in Portainer}
+      HOME: /home/node
+      OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-}
+      OPENCLAW_CONFIG_DIR: /home/node/.openclaw
+      OPENCLAW_CONFIG_PATH: /home/node/.openclaw/openclaw.json
+      OPENCLAW_DISABLE_BONJOUR: "1"
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:?Set OPENCLAW_GATEWAY_TOKEN in Portainer}
+      OPENCLAW_HOME: /home/node
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENCLAW_PUBLIC_URL: ${OPENCLAW_PUBLIC_URL:?Set OPENCLAW_PUBLIC_URL in Portainer}
+      OPENCLAW_STATE_DIR: /home/node/.openclaw
+      OPENCLAW_WORKSPACE_DIR: /home/node/.openclaw/workspace
+      TAILSCALE_AUTH_KEY: ""
+      TELEGRAM_FRINK_BOT_TOKEN: ${TELEGRAM_FRINK_BOT_TOKEN:?Set TELEGRAM_FRINK_BOT_TOKEN in Portainer}
+      TELEGRAM_HIGHWRIGHT_BOT_TOKEN: ${TELEGRAM_HIGHWRIGHT_BOT_TOKEN:?Set TELEGRAM_HIGHWRIGHT_BOT_TOKEN in Portainer}
+      TELEGRAM_OWNER_USER_ID: ${TELEGRAM_OWNER_USER_ID:?Set TELEGRAM_OWNER_USER_ID in Portainer}
+      TELEGRAM_T5H5_BOT_TOKEN: ${TELEGRAM_T5H5_BOT_TOKEN:?Set TELEGRAM_T5H5_BOT_TOKEN in Portainer}
+      TERM: xterm-256color
+      TZ: ${OPENCLAW_TZ:-UTC}
+    volumes:
+      - /opt/openclaw/${OPENCLAW_INSTANCE_NAME}/config:/home/node/.openclaw
+      - /opt/openclaw/${OPENCLAW_INSTANCE_NAME}/workspace:/home/node/.openclaw/workspace
+      - /opt/openclaw/${OPENCLAW_INSTANCE_NAME}/auth-profile-secrets:/home/node/.config/openclaw
+    cap_drop:
+      - NET_RAW
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    restart: unless-stopped
+    command:
+      [
+        "node",
+        "dist/index.js",
+        "gateway",
+        "--bind",
+        "loopback",
+        "--port",
+        "18789",
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      tailscale:
+        condition: service_healthy
+        restart: true

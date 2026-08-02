@@ -9,63 +9,101 @@ development toolchain:
 - GitHub CLI (`gh`) with runtime `GH_TOKEN` support for both `gh` and HTTPS Git
 - `jq`, OpenSSH client, ripgrep, zip, and unzip
 
-The base image is pinned to the current stable OpenClaw release,
-`ghcr.io/openclaw/openclaw:2026.7.1`. The explicit release tag avoids silently
-using an older build if the upstream mutable `latest` tag lags behind GitHub.
+The base image is pinned to the current stable OpenClaw release and immutable
+manifest, `ghcr.io/openclaw/openclaw:2026.7.1@sha256:6a31d44b2944e7adcd2b582bf6fb463111264ebca97a0201795b799135bd102c`.
+The explicit release avoids silently using an older build if the upstream
+mutable `latest` tag lags behind GitHub.
+The published custom image is also pinned by digest in `.env.example`, so the
+local machine and homeserver run the exact same bytes.
 
 ## Configure
 
-Copy `.env.example` to `.env`, then replace the two OpenClaw placeholders:
+For a fresh checkout, copy the environment and OpenClaw templates:
 
 ```powershell
 Copy-Item .env.example .env
+New-Item -ItemType Directory -Force .openclaw-data/t5h5/config
+Copy-Item openclaw.example.json .openclaw-data/t5h5/config/openclaw.json
 ```
 
-On Linux or macOS, use `cp .env.example .env`.
+On Linux or macOS:
 
-- `OPENCLAW_GATEWAY_TOKEN`: generate a long random value.
-- `GH_TOKEN`: use a fine-grained GitHub PAT scoped to the repositories agents
-  need. The token is injected at runtime and is never baked into the image.
+```bash
+cp .env.example .env
+mkdir -p .openclaw-data/t5h5/config
+cp openclaw.example.json \
+  .openclaw-data/t5h5/config/openclaw.json
+```
+
+Replace these `.env` placeholders:
+
+- `OPENCLAW_INSTANCE_NAME`: the stable Portainer host-path and Tailscale
+  identity name; keep it aligned with the local Compose project name.
+- `OPENCLAW_GATEWAY_TOKEN`: a long random value.
+- `OPENCLAW_PUBLIC_URL`: the deployment's tailnet-only `wss://` URL used in
+  mobile setup codes.
+- `GH_TOKEN`: a fine-grained GitHub PAT scoped to the required repositories.
+- `HEADQUARTERS_MCP_URL`: the shared Streamable HTTP MCP endpoint.
+- `HEADQUARTERS_T5H5_TOKEN`, `HEADQUARTERS_FRINK_TOKEN`, and
+  `HEADQUARTERS_HIGHWRIGHT_TOKEN`: distinct bearer tokens for the three
+  Headquarters identities.
+- `TELEGRAM_T5H5_BOT_TOKEN`, `TELEGRAM_FRINK_BOT_TOKEN`, and
+  `TELEGRAM_HIGHWRIGHT_BOT_TOKEN`: separate BotFather tokens for the three
+  agent-owned bots.
+- `TELEGRAM_OWNER_USER_ID`: your numeric Telegram user ID. The bots use it as
+  their only allowed DM sender and command owner.
+- `TAILSCALE_AUTH_KEY`: a reusable, non-ephemeral Tailscale auth key.
+- `OPENAI_API_KEY`: optional. Add a Platform key only if you later want OpenAI
+  speech synthesis; leave it blank for subscription-only agent chat and
+  GPT-Live Realtime Talk.
+
+The tokens are injected only at runtime and are never baked into either image.
 
 Create the three directories from `.env`. On Linux, make them writable by the
 container's non-root user:
 
 ```bash
-mkdir -p .openclaw-data/openclaw-dev/config \
-  .openclaw-data/openclaw-dev/workspace \
-  .openclaw-data/openclaw-dev/auth-profile-secrets
+mkdir -p .openclaw-data/t5h5/config \
+  .openclaw-data/t5h5/workspace \
+  .openclaw-data/t5h5/auth-profile-secrets
 sudo chown -R 1000:1000 .openclaw-data
 ```
 
 Docker Desktop file sharing handles these relative paths on Windows and macOS.
 
-## Build and onboard
+## Pull and authenticate
 
-Build from a fresh copy of the current official image:
+Pull the exact custom OpenClaw and Tailscale images:
 
 ```bash
-docker compose build --pull
+docker compose -f docker-compose.yml -f docker-compose.tailscale.yml pull
 ```
 
-Run onboarding through the gateway image before starting the stack:
+The config has three visible agents: `T5H5`, `Frink`, and `Highwright`.
+Internally, T5H5 uses OpenClaw's reserved `main` id so the other agents can
+read through to the same OpenAI OAuth profile without copying a rotating
+refresh token.
+
+Authenticate the OpenAI subscription once against T5H5:
 
 ```console
-docker compose run --rm --no-deps --entrypoint node openclaw-gateway dist/index.js onboard --mode local --no-install-daemon
+docker compose run --rm --no-deps --entrypoint node openclaw-gateway dist/index.js models auth --agent main login --provider openai --device-code
 ```
 
-Choose **OpenAI Codex OAuth** for subscription authentication. In a headless
-flow, open the displayed URL in a browser and paste the full redirect URL back
-into the wizard. No `OPENAI_API_KEY` is required.
-
-Apply the Docker gateway defaults and start it:
+Open the displayed URL, enter the device code, and authorize the ChatGPT/Codex
+subscription. No `OPENAI_API_KEY` is required for agent chat. Confirm that
+Frink and Highwright resolve the inherited profile:
 
 ```console
-docker compose run --rm --no-deps --entrypoint node openclaw-gateway dist/index.js config set gateway.mode local
-docker compose run --rm --no-deps --entrypoint node openclaw-gateway dist/index.js config set gateway.bind lan
-docker compose up -d openclaw-gateway
+docker compose run --rm --no-deps --entrypoint node openclaw-gateway dist/index.js models status --agent main --probe
+docker compose run --rm --no-deps --entrypoint node openclaw-gateway dist/index.js models status --agent frink --probe
+docker compose run --rm --no-deps --entrypoint node openclaw-gateway dist/index.js models status --agent highwright --probe
 ```
 
-Open <http://127.0.0.1:18789/> and enter `OPENCLAW_GATEWAY_TOKEN`.
+The tracked template selects `openai/gpt-5.6-sol`, uses the coding tool profile,
+defaults thinking to `high`, and keeps the Gateway on loopback with token
+auth. To build locally instead of pulling the registry image, temporarily set
+`OPENCLAW_IMAGE=openclaw-dev:local` and run `docker compose build --pull`.
 
 ## Tailscale sidecar
 
@@ -73,7 +111,9 @@ The optional override gives each deployment its own Tailscale node, MagicDNS
 name, HTTPS endpoint, and persistent identity. OpenClaw shares the sidecar's
 network namespace but remains bound to loopback. Tailscale Serve proxies it at
 `https://<TS_HOSTNAME>.<tailnet-name>.ts.net/`; no OpenClaw ports are published
-on the Docker host.
+on the Docker host. Set `OPENCLAW_PUBLIC_URL` to the matching `wss://` URL so
+the Control UI can generate short-lived Android/iOS setup codes even though
+the Gateway itself remains bound to loopback.
 
 The override requires Docker Compose 2.24.4 or newer and a host that exposes
 `/dev/net/tun`. Only the Tailscale sidecar receives `NET_ADMIN` and `NET_RAW`.
@@ -90,6 +130,7 @@ Start the sidecar deployment:
 ```console
 docker compose -f docker-compose.yml -f docker-compose.tailscale.yml up -d
 docker compose -f docker-compose.yml -f docker-compose.tailscale.yml exec tailscale tailscale status
+docker compose -f docker-compose.yml -f docker-compose.tailscale.yml exec tailscale tailscale serve status --json
 ```
 
 The current node's fully qualified `.ts.net` name appears in
@@ -112,6 +153,7 @@ Use one env file and Compose project name per deployment. For example, copy
 
 ```dotenv
 COMPOSE_PROJECT_NAME=openclaw-alpha
+OPENCLAW_INSTANCE_NAME=openclaw-alpha
 OPENCLAW_ENV_FILE=.env.alpha
 OPENCLAW_GATEWAY_TOKEN=replace-with-a-unique-random-value
 TAILSCALE_AUTH_KEY=tskey-auth-replace_me
@@ -120,11 +162,10 @@ TAILSCALE_AUTH_KEY=tskey-auth-replace_me
 `TS_HOSTNAME` and all three OpenClaw data paths derive from
 `COMPOSE_PROJECT_NAME`, so changing it gives the deployment a distinct DNS
 name, state directory, workspace, credentials, and project-scoped Tailscale
-state volume. Onboard this instance against the base Compose file:
+state volume. Authenticate this instance against the base Compose file:
 
 ```console
-docker compose --env-file .env.alpha run --rm --no-deps --entrypoint node openclaw-gateway dist/index.js onboard --mode local --no-install-daemon
-docker compose --env-file .env.alpha run --rm --no-deps --entrypoint node openclaw-gateway dist/index.js config set gateway.mode local
+docker compose --env-file .env.alpha run --rm --no-deps --entrypoint node openclaw-gateway dist/index.js models auth --agent main login --provider openai --device-code
 ```
 
 Then start it with the override:
@@ -138,44 +179,192 @@ same internal ports because neither publishes them to the host. Normal
 `docker compose down` preserves the Tailscale identity; `down -v` deletes its
 state volume and the next start registers a new tailnet node.
 
+Portainer reserves `COMPOSE_PROJECT_NAME` for its stack name. The
+`portainer-stack.yml` file therefore uses `OPENCLAW_INSTANCE_NAME` for the
+persistent host path and Tailscale hostname. Give every Portainer deployment a
+different value.
+
 ## GitHub
 
-Check the PAT and clone a repository:
+After the stack is running, check the PAT from the same container environment
+agents use:
 
 ```bash
-docker compose run --rm --entrypoint gh openclaw-cli auth status
-docker compose run --rm --workdir /home/node/.openclaw/workspace --entrypoint gh openclaw-cli repo clone OWNER/REPOSITORY
+docker compose -f docker-compose.yml -f docker-compose.tailscale.yml \
+  exec openclaw-gateway gh auth status
 ```
 
 The system Git credential helper delegates GitHub HTTPS authentication to
 `gh`, so later `git fetch`, `pull`, and `push` commands use the same runtime
-token.
+token. Ask any agent to clone the intended repository in chat for the final
+end-to-end repository proof.
+
+## Telegram
+
+Create one bot per agent with BotFather and place the three tokens plus your
+numeric Telegram user ID in `.env`. The config binds:
+
+- Telegram account `t5h5` to agent `main` (`T5H5`)
+- Telegram account `frink` to agent `frink`
+- Telegram account `highwright` to agent `highwright`
+
+Every account uses `dmPolicy: "allowlist"` with the same single numeric owner
+ID. Group access is disabled, and `commands.ownerAllowFrom` grants owner-only
+commands only to that Telegram identity. Verify the routing and live bot
+credentials after startup:
+
+```console
+docker compose -f docker-compose.yml -f docker-compose.tailscale.yml exec openclaw-gateway node dist/index.js agents list --bindings
+docker compose -f docker-compose.yml -f docker-compose.tailscale.yml exec openclaw-gateway node dist/index.js channels status --probe
+```
+
+## Voice
+
+OpenAI GPT-Live Realtime Talk uses `gpt-live-1-codex`, the `cedar` voice,
+Gateway relay transport, and the existing ChatGPT OAuth subscription profile.
+No `OPENAI_API_KEY` is required for this route.
+
+OpenAI TTS remains selected separately with `gpt-4o-mini-tts` and the `fable`
+voice, but it is dormant while `OPENAI_API_KEY` is blank. If a Platform key is
+added later, use `/tts audio`, enable `/tts on`, or request an audio reply.
+
+Android currently keeps GPT-Live models on native Talk until OpenClaw enables
+its Android realtime path. Native Talk uses `talk.speak`, so without a Platform
+TTS key Android uses its local system TTS fallback when that RPC cannot
+synthesize audio. Browser and Gateway-relay GPT-Live use the subscription OAuth
+profile and `cedar`.
+
+## Workboard and agent coordination
+
+Workboard is explicitly enabled in `openclaw.json`. Its SQLite database lives
+under the mounted OpenClaw state directory, so cards survive container
+restarts and move with the rest of the copied config state. Confirm the runtime
+before using the Workboard tab:
+
+```console
+docker compose -f docker-compose.yml -f docker-compose.tailscale.yml exec openclaw-gateway node dist/index.js plugins inspect workboard --runtime --json
+```
+
+Cross-agent session visibility and messaging are enabled only for `main`,
+`frink`, and `highwright`. This lets those three agents contact one another
+without opening the capability to future agents by default.
 
 ## MCP servers
 
-OpenClaw now has native outbound MCP support, so no separate MCP registry is
-installed. Add stdio or HTTP servers with `openclaw mcp`, for example:
+`openclaw.example.json` registers the Headquarters endpoint three times:
+
+- `headquarters-t5h5` expands `HEADQUARTERS_T5H5_TOKEN` and is projected only
+  into T5H5 (`main`).
+- `headquarters-frink` expands `HEADQUARTERS_FRINK_TOKEN` and is projected only
+  into `frink`.
+- `headquarters-highwright` expands `HEADQUARTERS_HIGHWRIGHT_TOKEN` and is
+  projected only into `highwright`.
+
+Each agent denies the other two servers' `server__*` tool prefixes. Do not add
+`auth: "oauth"` to these entries: OpenClaw ignores static Authorization headers
+when native MCP OAuth mode is enabled.
+
+Probe both saved identities:
 
 ```console
-docker compose run --rm openclaw-cli mcp add memory --command npx --arg -y --arg @modelcontextprotocol/server-memory
-docker compose run --rm openclaw-cli mcp doctor memory --probe
-docker compose run --rm openclaw-cli mcp status --verbose
+docker compose -f docker-compose.yml -f docker-compose.tailscale.yml exec openclaw-gateway node dist/index.js mcp doctor headquarters-t5h5 --probe
+docker compose -f docker-compose.yml -f docker-compose.tailscale.yml exec openclaw-gateway node dist/index.js mcp doctor headquarters-frink --probe
+docker compose -f docker-compose.yml -f docker-compose.tailscale.yml exec openclaw-gateway node dist/index.js mcp doctor headquarters-highwright --probe
 ```
-
-For an OAuth-enabled HTTP server, add it with `--auth oauth` and then run
-`docker compose run --rm openclaw-cli mcp login SERVER_NAME`. MCP definitions
-and OAuth credentials persist under the mounted OpenClaw state directory.
 
 If sandboxing is enabled later, allow `bundle-mcp` in
 `tools.sandbox.tools.alsoAllow` so configured MCP tools remain visible to
 sandboxed agents.
 
-## Update
+This is tool-policy and runtime-projection isolation inside one trusted Gateway.
+It is not a hostile-process secret boundary: both bearer values and `GH_TOKEN`
+exist in the Gateway process environment. Use separate Gateway stacks if the
+agents must be unable to inspect each other's process-level credentials.
 
-When OpenClaw publishes a stable update, change the `FROM` tag in `Dockerfile`,
-then rebuild:
+## Move to the homeserver
+
+For identical behavior, use the same repository revision and copy:
+
+- `.env`
+- the whole `.openclaw-data/t5h5/` directory, not only
+  `openclaw.json`; this includes OpenAI OAuth state, the auth-profile encryption
+  key, agent databases, and workspaces
+
+The Compose files and `tailscale/serve.json` come from this repository. On the
+Linux homeserver:
 
 ```bash
-docker compose build --pull --no-cache
-docker compose up -d --force-recreate openclaw-gateway
+sudo chown -R 1000:1000 .openclaw-data
+sudo chmod 700 .openclaw-data/t5h5/config \
+  .openclaw-data/t5h5/auth-profile-secrets
+sudo chmod 600 .env .openclaw-data/t5h5/config/openclaw.json
+docker compose -f docker-compose.yml -f docker-compose.tailscale.yml pull
+docker compose -f docker-compose.yml -f docker-compose.tailscale.yml up -d
 ```
+
+### Portainer deployment
+
+`portainer-stack.yml` is the Portainer-managed equivalent. It publishes no
+host ports and persists all mutable state under
+`/opt/openclaw/${OPENCLAW_INSTANCE_NAME}`:
+
+- `config`, `workspace`, and `auth-profile-secrets` for OpenClaw
+- `tailscale-state` for the node identity
+- `tailscale/serve.json` for the tailnet-only HTTPS proxy
+
+Set `OPENCLAW_INSTANCE_NAME=t5h5` in `.env`, then copy the migrated directories
+to `/opt/openclaw/t5h5`. In Portainer:
+
+1. Open **Stacks**, add a stack such as `openclaw-t5h5`, and paste
+   `portainer-stack.yml` into the web editor.
+2. Open the environment-variable **Advanced mode** and paste the populated
+   `.env`.
+3. Deploy the stack and wait for both `tailscale` and `openclaw-gateway` to
+   become healthy.
+
+The custom image is large. If stack creation times out while pulling it, use
+Portainer's **Images** page to pull the digest-only form first, for example
+`ghcr.io/thomashanlon/openclaw@sha256:<digest>`, then deploy the stack again.
+The tag-and-digest value in `.env` remains the source of truth.
+
+Verify that the OpenClaw containers have no published ports and that the
+gateway responds only at its Tailscale HTTPS name. Portainer's stack name may
+change; `OPENCLAW_INSTANCE_NAME` must continue to match the copied directory
+and intended Tailscale hostname.
+
+The pinned image digest ensures the homeserver pulls the exact custom image
+tested locally. The current custom image is `linux/amd64`; publish an arm64
+manifest before using an ARM homeserver.
+
+Docker Desktop presents these Windows bind mounts to the container as mode
+`0777` and needs inherited NTFS access for file sharing, so the local OpenClaw
+security audit reports that limitation. The `chmod` commands above set real
+owner-only permissions after the state is copied to Linux.
+
+With Docker Compose, the Tailscale node identity lives in the project-scoped
+`tailscale-state` Docker volume and is not inside `.openclaw-data`. Portainer
+instead bind-mounts it at
+`/opt/openclaw/${OPENCLAW_INSTANCE_NAME}/tailscale-state`. Copying that state
+preserves the exact existing tailnet node identity; otherwise the reusable auth
+key enrolls a new node. Stop the local deployment first if retaining the same
+hostname. If the auth key has expired by migration time, replace only
+`TAILSCALE_AUTH_KEY` with a fresh reusable key.
+
+If `COMPOSE_PROJECT_NAME` changes on the homeserver, rename the copied
+`.openclaw-data/t5h5` directory to match it, or set the three
+`OPENCLAW_*_DIR` values explicitly to the copied path.
+
+## Update
+
+When OpenClaw publishes a stable update, change the `FROM` tag in `Dockerfile`
+and publish the custom image. Update `OPENCLAW_IMAGE` to the new immutable
+digest only after validating it locally:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.tailscale.yml pull
+docker compose -f docker-compose.yml -f docker-compose.tailscale.yml up -d --force-recreate
+```
+
+Do not use the dashboard's self-update button for this immutable container
+deployment; rebuild and recreate the image so local and homeserver state stay
+reproducible.
