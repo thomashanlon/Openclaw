@@ -12,7 +12,7 @@ const scriptPath = fileURLToPath(
   new URL("./migrate-openclaw-config.mjs", import.meta.url),
 );
 
-test("migrates the beta.6 config keys and pins the GPT-Live voice", () => {
+test("migrates the beta.6 config keys without changing configured values", () => {
   const config = {
     agents: {
       list: [
@@ -54,7 +54,6 @@ test("migrates the beta.6 config keys and pins the GPT-Live voice", () => {
     "Moved agents.list to agents.entries.",
     "Copied agents.defaults.models to agents.defaults.modelPolicy.allow.",
     "Moved messages.tts to top-level tts.",
-    "Pinned GPT-Live Talk voice to cedar.",
     "Removed retired meta.lastTouchedAt.",
   ]);
   assert.deepEqual(config.agents.entries, {
@@ -76,11 +75,6 @@ test("migrates the beta.6 config keys and pins the GPT-Live voice", () => {
     },
   });
   assert.equal(config.talk.realtime.model, "gpt-live-1-codex");
-  assert.equal(config.talk.realtime.speakerVoice, "cedar");
-  assert.equal(
-    config.talk.realtime.providers.openai.speakerVoice,
-    "cedar",
-  );
   assert.deepEqual(config.meta, { lastTouchedVersion: "2026.7.1" });
 });
 
@@ -98,33 +92,6 @@ test("is idempotent after migration", () => {
     tts: { provider: "openai" },
   };
 
-  assert.deepEqual(migrateConfig(config), []);
-});
-
-test("pins GPT-Live Talk to cedar for provider and session launch", () => {
-  const config = {
-    talk: {
-      realtime: {
-        provider: "openai",
-        model: "gpt-live-1-codex",
-        speakerVoice: "fable",
-        providers: {
-          openai: {
-            speakerVoice: "fable",
-          },
-        },
-      },
-    },
-  };
-
-  assert.deepEqual(migrateConfig(config), [
-    "Pinned GPT-Live Talk voice to cedar.",
-  ]);
-  assert.equal(config.talk.realtime.speakerVoice, "cedar");
-  assert.equal(
-    config.talk.realtime.providers.openai.speakerVoice,
-    "cedar",
-  );
   assert.deepEqual(migrateConfig(config), []);
 });
 

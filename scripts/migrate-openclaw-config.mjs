@@ -11,8 +11,6 @@ import { pathToFileURL } from "node:url";
 
 const TARGET_VERSION = "2026.7.2-beta.6";
 const DEFAULT_CONFIG_PATH = "/home/node/.openclaw/openclaw.json";
-const GPT_LIVE_TALK_MODEL = "gpt-live-1-codex";
-const GPT_LIVE_TALK_VOICE = "cedar";
 
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -295,34 +293,6 @@ function migrateTts(config, changes) {
   changes.push("Moved messages.tts to top-level tts.");
 }
 
-function pinGptLiveTalkVoice(config, changes) {
-  const talk = config.talk;
-  const realtime = isRecord(talk) ? talk.realtime : undefined;
-  if (!isRecord(realtime) || realtime.model !== GPT_LIVE_TALK_MODEL) {
-    return;
-  }
-
-  const providers = getOrCreateRecord(
-    realtime,
-    "providers",
-    "talk.realtime.providers",
-  );
-  const openai = getOrCreateRecord(
-    providers,
-    "openai",
-    "talk.realtime.providers.openai",
-  );
-  if (
-    realtime.speakerVoice === GPT_LIVE_TALK_VOICE &&
-    openai.speakerVoice === GPT_LIVE_TALK_VOICE
-  ) {
-    return;
-  }
-  realtime.speakerVoice = GPT_LIVE_TALK_VOICE;
-  openai.speakerVoice = GPT_LIVE_TALK_VOICE;
-  changes.push("Pinned GPT-Live Talk voice to cedar.");
-}
-
 function removeRetiredMetadata(config, changes) {
   if (!isRecord(config.meta) || !Object.hasOwn(config.meta, "lastTouchedAt")) {
     return;
@@ -344,7 +314,6 @@ export function migrateConfig(config) {
   migrateAgentRoster(config, changes);
   preserveModelPolicy(config, changes);
   migrateTts(config, changes);
-  pinGptLiveTalkVoice(config, changes);
   removeRetiredMetadata(config, changes);
   return changes;
 }

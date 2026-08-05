@@ -11,7 +11,7 @@ development toolchain:
 
 The base image is pinned to the OpenClaw release that adds GPT-Live Realtime
 Talk support and its immutable manifest,
-`ghcr.io/openclaw/openclaw:2026.7.2-beta.6@sha256:4477d6d2572df1433034d90c678d5cb21f6a4c821dcc83952f7508b608c5ff92`.
+`ghcr.io/openclaw/openclaw:2026.7.2-beta.7@sha256:d41807ff1e5c925ff75e71ed2b755cdea59da1431d1f4fde5051a16a3337e9ce`.
 The explicit prerelease avoids the older `latest` build, which does not route
 `gpt-live-1-codex` through `/v1/live`. The custom image uses the same exact
 version tag in `.env.example`, so the Gateway and its bundled Control UI are
@@ -54,9 +54,9 @@ Replace these `.env` placeholders:
 - `TELEGRAM_OWNER_USER_ID`: your numeric Telegram user ID. The bots use it as
   their only allowed DM sender and command owner.
 - `TAILSCALE_AUTH_KEY`: a reusable, non-ephemeral Tailscale auth key.
-- `OPENAI_API_KEY`: optional. Add a Platform key only if you later want OpenAI
-  speech synthesis; leave it blank for subscription-only agent chat and
-  GPT-Live Realtime Talk.
+- `OPENAI_API_KEY`: optional for agent chat, but required for OpenAI speech
+  synthesis and GPT-Live Realtime Talk. Leave it blank for subscription-only
+  agent chat.
 
 The tokens are injected only at runtime and are never baked into either image.
 
@@ -222,8 +222,8 @@ docker compose -f docker-compose.yml -f docker-compose.tailscale.yml exec opencl
 ## Voice
 
 OpenAI GPT-Live Realtime Talk uses `gpt-live-1-codex`, the `cedar` voice,
-Gateway relay transport, and the existing ChatGPT OAuth subscription profile.
-No `OPENAI_API_KEY` is required for this route.
+Gateway relay transport, and an OpenAI Platform API key. The ChatGPT OAuth
+subscription profile remains available for agent chat, but not GPT-Live.
 
 OpenAI TTS remains selected separately with `gpt-4o-mini-tts` and the `fable`
 voice, but it is dormant while `OPENAI_API_KEY` is blank. If a Platform key is
@@ -232,8 +232,8 @@ added later, use `/tts audio`, enable `/tts on`, or request an audio reply.
 Android currently keeps GPT-Live models on native Talk until OpenClaw enables
 its Android realtime path. Native Talk uses `talk.speak`, so without a Platform
 TTS key Android uses its local system TTS fallback when that RPC cannot
-synthesize audio. Browser and Gateway-relay GPT-Live use the subscription OAuth
-profile and `cedar`.
+synthesize audio. Browser and Gateway-relay GPT-Live require the Platform key
+and use `cedar`.
 
 ## Workboard and agent coordination
 
@@ -327,7 +327,7 @@ Portainer:
 
 For an existing stack, first wait for the repository's **Build and Publish
 Docker Image** workflow to publish
-`ghcr.io/thomashanlon/openclaw:2026.7.2-beta.6`. Then replace the stack's
+`ghcr.io/thomashanlon/openclaw:2026.7.2-beta.7`. Then replace the stack's
 `OPENCLAW_IMAGE` environment value with that exact tag and use **Update the
 stack** with **Re-pull image** enabled. This recreates the Gateway from the new
 image; the same image serves the bundled Control UI. No persistent OpenClaw or
@@ -351,7 +351,7 @@ container with exit code `0` is expected.
 
 The custom image is large. If stack creation times out while pulling it, use
 Portainer's **Images** page to pull
-`ghcr.io/thomashanlon/openclaw:2026.7.2-beta.6` first, then deploy the stack
+`ghcr.io/thomashanlon/openclaw:2026.7.2-beta.7` first, then deploy the stack
 again. The exact versioned value in `.env` remains the source of truth; do not
 substitute `latest`.
 
@@ -361,7 +361,7 @@ change; `OPENCLAW_INSTANCE_NAME` must continue to match the copied directory
 and intended Tailscale hostname.
 
 The pinned image version ensures the homeserver runs the custom build based on
-OpenClaw `2026.7.2-beta.6`. The current custom image is `linux/amd64`; publish
+OpenClaw `2026.7.2-beta.7`. The current custom image is `linux/amd64`; publish
 an arm64 manifest before using an ARM homeserver.
 
 Docker Desktop presents these Windows bind mounts to the container as mode

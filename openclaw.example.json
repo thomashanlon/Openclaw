@@ -153,7 +153,6 @@
     "realtime": {
       "provider": "openai",
       "model": "gpt-live-1-codex",
-      "speakerVoice": "cedar",
       "providers": {
         "openai": {
           "speakerVoice": "cedar"
