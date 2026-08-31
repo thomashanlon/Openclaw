@@ -55,6 +55,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENCLAW_PUBLIC_URL: ${OPENCLAW_PUBLIC_URL:?Set OPENCLAW_PUBLIC_URL in Portainer}
       OPENCLAW_STATE_DIR: /home/node/.openclaw
+      OPENCLAW_SUPERVISOR_MODE: external
       OPENCLAW_WORKSPACE_DIR: /home/node/.openclaw/workspace
       TAILSCALE_AUTH_KEY: ""
       TELEGRAM_FRINK_BOT_TOKEN: ${TELEGRAM_FRINK_BOT_TOKEN:?Set TELEGRAM_FRINK_BOT_TOKEN in Portainer}
@@ -98,6 +99,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENCLAW_PUBLIC_URL: ${OPENCLAW_PUBLIC_URL:?Set OPENCLAW_PUBLIC_URL in Portainer}
       OPENCLAW_STATE_DIR: /home/node/.openclaw
+      OPENCLAW_SUPERVISOR_MODE: external
       OPENCLAW_WORKSPACE_DIR: /home/node/.openclaw/workspace
       TAILSCALE_AUTH_KEY: ""
       TELEGRAM_FRINK_BOT_TOKEN: ${TELEGRAM_FRINK_BOT_TOKEN:?Set TELEGRAM_FRINK_BOT_TOKEN in Portainer}

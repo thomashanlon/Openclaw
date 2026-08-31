@@ -9,13 +9,10 @@ development toolchain:
 - GitHub CLI (`gh`) with runtime `GH_TOKEN` support for both `gh` and HTTPS Git
 - `jq`, OpenSSH client, ripgrep, zip, and unzip
 
-The base image is pinned to the OpenClaw release that adds GPT-Live Realtime
-Talk support and its immutable manifest,
-`ghcr.io/openclaw/openclaw:2026.7.2-beta.7@sha256:d41807ff1e5c925ff75e71ed2b755cdea59da1431d1f4fde5051a16a3337e9ce`.
-The explicit prerelease avoids the older `latest` build, which does not route
-`gpt-live-1-codex` through `/v1/live`. The custom image uses the same exact
-version tag in `.env.example`, so the Gateway and its bundled Control UI are
-upgraded together.
+The base image is pinned to OpenClaw `2026.8.1` and its immutable manifest,
+`ghcr.io/openclaw/openclaw:2026.8.1@sha256:e7849cb6c1ef1ead39ab4be7d85edb2df89611f486e283284c7cf35ce39a20d4`.
+The custom image uses the same exact version tag in `.env.example`, so the
+Gateway and its bundled Control UI are upgraded together.
 
 ## Configure
 
@@ -71,6 +68,8 @@ sudo chown -R 1000:1000 .openclaw-data
 ```
 
 Docker Desktop file sharing handles these relative paths on Windows and macOS.
+All OpenClaw services declare `OPENCLAW_SUPERVISOR_MODE=external` so Compose or
+Portainer remains responsible for updates, restarts, and container lifecycle.
 
 ## Pull and authenticate
 
@@ -327,7 +326,7 @@ Portainer:
 
 For an existing stack, first wait for the repository's **Build and Publish
 Docker Image** workflow to publish
-`ghcr.io/thomashanlon/openclaw:2026.7.2-beta.7`. Then replace the stack's
+`ghcr.io/thomashanlon/openclaw:2026.8.1`. Then replace the stack's
 `OPENCLAW_IMAGE` environment value with that exact tag and use **Update the
 stack** with **Re-pull image** enabled. This recreates the Gateway from the new
 image; the same image serves the bundled Control UI. No persistent OpenClaw or
@@ -351,7 +350,7 @@ container with exit code `0` is expected.
 
 The custom image is large. If stack creation times out while pulling it, use
 Portainer's **Images** page to pull
-`ghcr.io/thomashanlon/openclaw:2026.7.2-beta.7` first, then deploy the stack
+`ghcr.io/thomashanlon/openclaw:2026.8.1` first, then deploy the stack
 again. The exact versioned value in `.env` remains the source of truth; do not
 substitute `latest`.
 
@@ -361,7 +360,7 @@ change; `OPENCLAW_INSTANCE_NAME` must continue to match the copied directory
 and intended Tailscale hostname.
 
 The pinned image version ensures the homeserver runs the custom build based on
-OpenClaw `2026.7.2-beta.7`. The current custom image is `linux/amd64`; publish
+OpenClaw `2026.8.1`. The current custom image is `linux/amd64`; publish
 an arm64 manifest before using an ARM homeserver.
 
 Docker Desktop presents these Windows bind mounts to the container as mode

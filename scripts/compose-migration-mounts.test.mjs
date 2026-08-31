@@ -54,4 +54,15 @@ for (const file of ["docker-compose.yml", "portainer-stack.yml"]) {
     assert.ok(migrationMount, "migration service workspace mount is missing");
     assert.equal(migrationMount.source, gatewayMount.source);
   });
+
+  test(`${file} marks OpenClaw services as externally supervised`, () => {
+    const services = renderCompose(file).services;
+
+    for (const service of Object.values(services)) {
+      if (service.image !== composeEnvironment.OPENCLAW_IMAGE) {
+        continue;
+      }
+      assert.equal(service.environment.OPENCLAW_SUPERVISOR_MODE, "external");
+    }
+  });
 }
