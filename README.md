@@ -9,8 +9,8 @@ development toolchain:
 - GitHub CLI (`gh`) with runtime `GH_TOKEN` support for both `gh` and HTTPS Git
 - `jq`, OpenSSH client, ripgrep, zip, and unzip
 
-The base image is pinned to OpenClaw `2026.8.1` and its immutable manifest,
-`ghcr.io/openclaw/openclaw:2026.8.1@sha256:e7849cb6c1ef1ead39ab4be7d85edb2df89611f486e283284c7cf35ce39a20d4`.
+The base image is pinned to OpenClaw `2026.8.2` and its immutable manifest,
+`ghcr.io/openclaw/openclaw:2026.8.2@sha256:5d25165995041caa6a7175bec82b25ad98c44eb269bb42435da8e27ec06e6be4`.
 The custom image uses the same exact version tag in `.env.example`, so the
 Gateway and its bundled Control UI are upgraded together.
 
@@ -326,7 +326,7 @@ Portainer:
 
 For an existing stack, first wait for the repository's **Build and Publish
 Docker Image** workflow to publish
-`ghcr.io/thomashanlon/openclaw:2026.8.1`. Then replace the stack's
+`ghcr.io/thomashanlon/openclaw:2026.8.2`. Then replace the stack's
 `OPENCLAW_IMAGE` environment value with that exact tag and use **Update the
 stack** with **Re-pull image** enabled. This recreates the Gateway from the new
 image; the same image serves the bundled Control UI. No persistent OpenClaw or
@@ -350,7 +350,7 @@ container with exit code `0` is expected.
 
 The custom image is large. If stack creation times out while pulling it, use
 Portainer's **Images** page to pull
-`ghcr.io/thomashanlon/openclaw:2026.8.1` first, then deploy the stack
+`ghcr.io/thomashanlon/openclaw:2026.8.2` first, then deploy the stack
 again. The exact versioned value in `.env` remains the source of truth; do not
 substitute `latest`.
 
@@ -360,7 +360,7 @@ change; `OPENCLAW_INSTANCE_NAME` must continue to match the copied directory
 and intended Tailscale hostname.
 
 The pinned image version ensures the homeserver runs the custom build based on
-OpenClaw `2026.8.1`. The current custom image is `linux/amd64`; publish
+OpenClaw `2026.8.2`. The current custom image is `linux/amd64`; publish
 an arm64 manifest before using an ARM homeserver.
 
 Docker Desktop presents these Windows bind mounts to the container as mode
