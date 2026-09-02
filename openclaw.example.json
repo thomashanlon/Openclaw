@@ -153,13 +153,8 @@
     "realtime": {
       "provider": "openai",
       "model": "gpt-live-1-codex",
-      "providers": {
-        "openai": {
-          "speakerVoice": "cedar"
-        }
-      },
       "mode": "realtime",
-      "transport": "gateway-relay",
+      "transport": "webrtc",
       "brain": "agent-consult"
     }
   },

@@ -51,9 +51,9 @@ Replace these `.env` placeholders:
 - `TELEGRAM_OWNER_USER_ID`: your numeric Telegram user ID. The bots use it as
   their only allowed DM sender and command owner.
 - `TAILSCALE_AUTH_KEY`: a reusable, non-ephemeral Tailscale auth key.
-- `OPENAI_API_KEY`: optional for agent chat, but required for OpenAI speech
-  synthesis and GPT-Live Realtime Talk. Leave it blank for subscription-only
-  agent chat.
+- `OPENAI_API_KEY`: optional for agent chat and browser GPT-Live Talk, but
+  required for OpenAI speech synthesis and Platform-only voice paths. Leave it
+  blank to use the ChatGPT subscription OAuth profile.
 
 The tokens are injected only at runtime and are never baked into either image.
 
@@ -220,9 +220,9 @@ docker compose -f docker-compose.yml -f docker-compose.tailscale.yml exec opencl
 
 ## Voice
 
-OpenAI GPT-Live Realtime Talk uses `gpt-live-1-codex`, the `cedar` voice,
-Gateway relay transport, and an OpenAI Platform API key. The ChatGPT OAuth
-subscription profile remains available for agent chat, but not GPT-Live.
+OpenAI GPT-Live browser Talk uses `gpt-live-1-codex`, the provider-default
+voice, client WebRTC transport, and the existing OpenClaw ChatGPT OAuth
+profile. No OpenAI Platform API key is required for this browser path.
 
 OpenAI TTS remains selected separately with `gpt-4o-mini-tts` and the `fable`
 voice, but it is dormant while `OPENAI_API_KEY` is blank. If a Platform key is
@@ -231,8 +231,8 @@ added later, use `/tts audio`, enable `/tts on`, or request an audio reply.
 Android currently keeps GPT-Live models on native Talk until OpenClaw enables
 its Android realtime path. Native Talk uses `talk.speak`, so without a Platform
 TTS key Android uses its local system TTS fallback when that RPC cannot
-synthesize audio. Browser and Gateway-relay GPT-Live require the Platform key
-and use `cedar`.
+synthesize audio. Browser GPT-Live uses the OpenClaw ChatGPT OAuth profile and
+the provider-default voice.
 
 ## Workboard and agent coordination
 
